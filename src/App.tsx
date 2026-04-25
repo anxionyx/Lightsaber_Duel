@@ -17,6 +17,8 @@ type GameMode = 'menu' | 'ai' | 'pvp_host' | 'pvp_join';
 export default function App() {
   const [mode, setMode] = useState<GameMode>('menu');
   const [gameState, setGameState] = useState({ playerHP: 100, enemyHP: 100, isGameOver: false });
+  const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [peerId, setPeerId] = useState('');
   const [targetId, setTargetId] = useState('');
   const [status, setStatus] = useState('');
@@ -35,52 +37,74 @@ export default function App() {
     if (mode === 'menu') return;
     if (!containerRef.current) return;
 
-    const engine = new GameEngine(containerRef.current, (delta) => {
-      if (gameState.isGameOver) return;
-      updateGame(delta);
-    });
-    engineRef.current = engine;
+    const initGame = async () => {
+      setLoading(true);
+      setProgress(20);
 
-    const player = new Player(0x00ffff);
-    engine.getScene().add(player.group);
-    playerRef.current = player;
+      // Small delay to ensure DOM is ready and show progress
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setProgress(50);
 
-    const enemy = new Player(0xff0000, true);
-    engine.getScene().add(enemy.group);
-    enemyRef.current = enemy;
+      try {
+        const engine = new GameEngine(containerRef.current!, (delta) => {
+          if (gameState.isGameOver) return;
+          updateGame(delta);
+        });
+        engineRef.current = engine;
+        setProgress(70);
 
-    player.saber.toggle(true);
-    enemy.saber.toggle(true);
+        const player = new Player(0x00ffff);
+        engine.getScene().add(player.group);
+        playerRef.current = player;
 
-    if (mode === 'ai') {
-      aiRef.current = new BotAI(enemy, player);
-    } else {
-      multiRef.current = new MultiplayerManager();
-      multiRef.current.onConnected = () => setStatus('Connected!');
-      
-      const interval = setInterval(() => {
-        if (multiRef.current?.myId) {
-          setPeerId(multiRef.current.myId);
-          clearInterval(interval);
+        const enemy = new Player(0xff0000, true);
+        engine.getScene().add(enemy.group);
+        enemyRef.current = enemy;
+
+        player.saber.toggle(true);
+        enemy.saber.toggle(true);
+        setProgress(90);
+
+        if (mode === 'ai') {
+          aiRef.current = new BotAI(enemy, player);
+        } else {
+          multiRef.current = new MultiplayerManager();
+          multiRef.current.onConnected = () => setStatus('Connected!');
+          
+          const interval = setInterval(() => {
+            if (multiRef.current?.myId) {
+              setPeerId(multiRef.current.myId);
+              clearInterval(interval);
+            }
+          }, 500);
+
+          multiRef.current.onData = (data) => {
+            if (enemyRef.current) {
+              enemyRef.current.group.position.set(data.pos.x, data.pos.y, data.pos.z);
+              enemyRef.current.action = data.action;
+              enemyRef.current.saber.toggle(data.saberActive);
+              if (data.hit) {
+                playerRef.current!.health -= 10;
+              }
+            }
+          };
         }
-      }, 500);
 
-      multiRef.current.onData = (data) => {
-        if (enemyRef.current) {
-          enemyRef.current.group.position.set(data.pos.x, data.pos.y, data.pos.z);
-          enemyRef.current.action = data.action;
-          enemyRef.current.saber.toggle(data.saberActive);
-          if (data.hit) {
-            playerRef.current!.health -= 10;
-          }
-        }
-      };
-    }
+        setProgress(100);
+        setTimeout(() => setLoading(false), 200);
+      } catch (err) {
+        console.error("Failed to init game:", err);
+        setMode('menu');
+      }
+    };
+
+    initGame();
 
     return () => {
-      engine.destroy();
+      if (engineRef.current) engineRef.current.destroy();
       engineRef.current = null;
       multiRef.current = null;
+      aiRef.current = null;
     };
   }, [mode]);
 
@@ -275,6 +299,39 @@ export default function App() {
               </div>
             )}
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Loading Overlay */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center p-8"
+          >
+            <div className="w-full max-w-xs space-y-4">
+              <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="text-center font-black tracking-tighter text-cyan-400 text-2xl mb-4"
+              >
+                INITIALIZING GEAR...
+              </motion.div>
+              <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  className="h-full bg-cyan-500 shadow-[0_0_15px_rgba(6,182,212,0.8)]"
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-bold tracking-widest text-white/30 uppercase">
+                <span>Calibrating Crystals</span>
+                <span>{progress}%</span>
+              </div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
