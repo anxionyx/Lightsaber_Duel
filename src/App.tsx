@@ -9,13 +9,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Swords, Shield, Zap, Users, Monitor, Info, ArrowLeft, Send } from 'lucide-react';
 import { GameEngine } from './game/GameEngine';
 import { Player } from './game/Player';
-import { BotAI } from './game/BotAI';
+import { BotAI, BotDifficulty } from './game/BotAI';
 import { MultiplayerManager } from './game/MultiplayerManager';
 
 type GameMode = 'menu' | 'ai' | 'pvp_host' | 'pvp_join';
 
 export default function App() {
   const [mode, setMode] = useState<GameMode>('menu');
+  const [botDifficulty, setBotDifficulty] = useState<BotDifficulty>('medium');
+  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
   const [gameState, setGameState] = useState({ playerHP: 100, enemyHP: 100, isGameOver: false });
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -32,6 +34,7 @@ export default function App() {
   const joystickRef = useRef({ x: 0, y: 0 });
   const rotationRef = useRef({ yaw: 0, pitch: 0 });
   const touchStartRef = useRef<{ x: number, y: number } | null>(null);
+  const isGameOverRef = useRef(false);
 
   useEffect(() => {
     if (mode === 'menu') return;
@@ -40,6 +43,8 @@ export default function App() {
     const initGame = async () => {
       setLoading(true);
       setProgress(20);
+      isGameOverRef.current = false;
+      setGameState({ playerHP: 100, enemyHP: 100, isGameOver: false });
 
       // Small delay to ensure DOM is ready and show progress
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -47,7 +52,7 @@ export default function App() {
 
       try {
         const engine = new GameEngine(containerRef.current!, (delta) => {
-          if (gameState.isGameOver) return;
+          if (isGameOverRef.current) return;
           updateGame(delta);
         });
         engineRef.current = engine;
@@ -66,7 +71,7 @@ export default function App() {
         setProgress(90);
 
         if (mode === 'ai') {
-          aiRef.current = new BotAI(enemy, player);
+          aiRef.current = new BotAI(enemy, player, botDifficulty);
         } else {
           multiRef.current = new MultiplayerManager();
           multiRef.current.onConnected = () => setStatus('Connected!');
@@ -143,10 +148,13 @@ export default function App() {
         }
     }
 
+    const isOver = playerRef.current.health <= 0 || enemyRef.current.health <= 0;
+    if (isOver) isGameOverRef.current = true;
+
     setGameState({
       playerHP: Math.max(0, playerRef.current.health),
       enemyHP: Math.max(0, enemyRef.current.health),
-      isGameOver: playerRef.current.health <= 0 || enemyRef.current.health <= 0,
+      isGameOver: isOver,
     });
 
     if (multiRef.current) {
@@ -183,12 +191,66 @@ export default function App() {
             </motion.h1>
             
             <div className="flex flex-col space-y-4 w-full max-w-md">
-              <MenuButton icon={<Monitor size={24} />} title="Player vs Robot" onClick={() => setMode('ai')} />
+              <MenuButton icon={<Monitor size={24} />} title="Player vs Robot" onClick={() => setShowDifficultyModal(true)} />
               <MenuButton icon={<Users size={24} />} title="Human vs Human (P2P)" onClick={() => setMode('pvp_host')} />
               <div className="text-xs text-center text-gray-500 mt-4 px-8">
                 Master the force. Move with left stick, strike with right controls.
               </div>
             </div>
+
+            {/* Difficulty Selection Modal */}
+            <AnimatePresence>
+              {showDifficultyModal && (
+                <motion.div 
+                  initial={{ opacity: 0 }} 
+                  animate={{ opacity: 1 }} 
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+                >
+                  <motion.div 
+                    initial={{ scale: 0.9, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    className="bg-zinc-900 border border-white/10 p-8 rounded-3xl w-full max-w-sm space-y-8"
+                  >
+                    <div className="text-center space-y-2">
+                       <h2 className="text-3xl font-black italic tracking-tighter text-cyan-400">SELECT INTENSITY</h2>
+                       <p className="text-xs text-zinc-500 uppercase tracking-widest font-bold">How strong is the force in this one?</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <DifficultyOption 
+                        label="Padawan" 
+                        desc="Calm and predictable movements." 
+                        active={botDifficulty === 'easy'} 
+                        onClick={() => { setBotDifficulty('easy'); setMode('ai'); setShowDifficultyModal(false); }} 
+                        color="border-cyan-400"
+                      />
+                      <DifficultyOption 
+                        label="Jedi Knight" 
+                        desc="Balanced offense and defense." 
+                        active={botDifficulty === 'medium'} 
+                        onClick={() => { setBotDifficulty('medium'); setMode('ai'); setShowDifficultyModal(false); }} 
+                        color="border-yellow-400"
+                      />
+                      <DifficultyOption 
+                        label="Sith Master" 
+                        desc="Aggressive strikes and lethal precision." 
+                        active={botDifficulty === 'hard'} 
+                        onClick={() => { setBotDifficulty('hard'); setMode('ai'); setShowDifficultyModal(false); }} 
+                        color="border-red-500"
+                      />
+                    </div>
+                    
+                    <button 
+                      onClick={() => setShowDifficultyModal(false)}
+                      className="w-full text-sm font-bold text-zinc-500 hover:text-white transition-colors uppercase tracking-widest pt-2"
+                    >
+                      Back to Hangar
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ) : (
           <div 
@@ -335,6 +397,18 @@ export default function App() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function DifficultyOption({ label, desc, active, onClick, color }: { label: string, desc: string, active: boolean, onClick: () => void, color: string }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={`w-full p-4 rounded-2xl border-2 transition-all text-left space-y-1 ${active ? `${color} bg-white/5` : 'border-white/5 hover:border-white/20 bg-white/0'}`}
+    >
+      <div className={`text-xl font-black italic tracking-tighter ${active ? 'text-white' : 'text-zinc-500'}`}>{label}</div>
+      <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{desc}</div>
+    </button>
   );
 }
 

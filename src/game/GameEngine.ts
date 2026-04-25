@@ -97,6 +97,9 @@ export class GameEngine {
   private cameraRotation: THREE.Euler = new THREE.Euler(0, 0, 0, 'YXZ');
   private cameraDistance: number = 5;
 
+  public getScene() { return this.scene; }
+  public getCamera() { return this.camera; }
+
   public setCameraRotation(yaw: number, pitch: number) {
     this.cameraRotation.y = yaw;
     this.cameraRotation.x = pitch;
