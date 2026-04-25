@@ -89,8 +89,26 @@ export class GameEngine {
 
   private animationId: number = 0;
 
-  public getScene() { return this.scene; }
-  public getCamera() { return this.camera; }
+  private cameraRotation: THREE.Euler = new THREE.Euler(0, 0, 0, 'YXZ');
+  private cameraDistance: number = 5;
+
+  public setCameraRotation(yaw: number, pitch: number) {
+    this.cameraRotation.y = yaw;
+    this.cameraRotation.x = pitch;
+    this.cameraRotation.x = Math.max(-0.5, Math.min(0.5, this.cameraRotation.x));
+  }
+
+  public updateCamera(targetPosition: THREE.Vector3) {
+    const offset = new THREE.Vector3(0, 0, this.cameraDistance);
+    offset.applyEuler(this.cameraRotation);
+    this.camera.position.copy(targetPosition).add(offset);
+    this.camera.position.y += 1.5; // Look at head height
+    this.camera.lookAt(targetPosition.x, targetPosition.y + 1.2, targetPosition.z);
+  }
+
+  public getCameraRotation() {
+    return this.cameraRotation;
+  }
   
   public destroy() {
     cancelAnimationFrame(this.animationId);

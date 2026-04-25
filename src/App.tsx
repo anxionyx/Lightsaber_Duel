@@ -28,6 +28,8 @@ export default function App() {
   const aiRef = useRef<BotAI | null>(null);
   const multiRef = useRef<MultiplayerManager | null>(null);
   const joystickRef = useRef({ x: 0, y: 0 });
+  const rotationRef = useRef({ yaw: 0, pitch: 0 });
+  const touchStartRef = useRef<{ x: number, y: number } | null>(null);
 
   useEffect(() => {
     if (mode === 'menu') return;
@@ -85,11 +87,21 @@ export default function App() {
   const updateGame = (delta: number) => {
     if (!playerRef.current || !enemyRef.current) return;
 
-    // Movement
-    const moveDir = new THREE.Vector3(joystickRef.current.x, 0, -joystickRef.current.y);
+    // Movement relative to camera
+    const cameraRotation = engineRef.current!.getCameraRotation();
+    const moveDir = new THREE.Vector3(joystickRef.current.x, 0, joystickRef.current.y);
+    moveDir.applyAxisAngle(new THREE.Vector3(0, 1, 0), cameraRotation.y);
+    
     playerRef.current.move(moveDir, delta);
+    playerRef.current.face(enemyRef.current.group.position);
     playerRef.current.update(delta);
+    
+    enemyRef.current.face(playerRef.current.group.position);
     enemyRef.current.update(delta);
+
+    // Update Camera position
+    engineRef.current!.setCameraRotation(rotationRef.current.yaw, rotationRef.current.pitch);
+    engineRef.current!.updateCamera(playerRef.current.group.position);
 
     if (aiRef.current) aiRef.current.update(delta);
 
@@ -155,7 +167,27 @@ export default function App() {
             </div>
           </motion.div>
         ) : (
-          <div className="relative w-full h-full">
+          <div 
+            className="relative w-full h-full"
+            onPointerDown={(e) => {
+              // Only start swipe if not on controls
+              const target = e.target as HTMLElement;
+              if (target === containerRef.current || target.classList.contains('absolute')) {
+                touchStartRef.current = { x: e.clientX, y: e.clientY };
+              }
+            }}
+            onPointerMove={(e) => {
+              if (touchStartRef.current) {
+                const dx = e.clientX - touchStartRef.current.x;
+                const dy = e.clientY - touchStartRef.current.y;
+                rotationRef.current.yaw -= dx * 0.005;
+                rotationRef.current.pitch -= dy * 0.005;
+                touchStartRef.current = { x: e.clientX, y: e.clientY };
+              }
+            }}
+            onPointerUp={() => touchStartRef.current = null}
+            onPointerLeave={() => touchStartRef.current = null}
+          >
             <div ref={containerRef} className="absolute inset-0" />
             
             {/* HUD */}
@@ -171,23 +203,30 @@ export default function App() {
             </div>
 
             {/* Controls */}
-            <div className="absolute bottom-12 inset-x-0 px-8 flex justify-between items-end">
+            <div className="absolute bottom-20 inset-x-0 px-8 flex justify-between items-end pointer-events-none">
               {/* Left Joystick */}
               <div 
-                className="w-32 h-32 bg-white/5 border border-white/20 rounded-full flex items-center justify-center relative touch-none"
+                className="w-32 h-32 bg-white/5 border border-white/20 rounded-full flex items-center justify-center relative touch-none pointer-events-auto"
+                onPointerDown={(e) => {
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                }}
                 onPointerMove={(e) => {
+                  if (e.buttons === 0) return;
                   const rect = e.currentTarget.getBoundingClientRect();
                   const x = (e.clientX - rect.left - 64) / 64;
                   const y = (e.clientY - rect.top - 64) / 64;
                   joystickRef.current = { x: Math.max(-1, Math.min(1, x)), y: Math.max(-1, Math.min(1, y)) };
                 }}
-                onPointerUp={() => joystickRef.current = { x: 0, y: 0 }}
+                onPointerUp={(e) => {
+                  e.currentTarget.releasePointerCapture(e.pointerId);
+                  joystickRef.current = { x: 0, y: 0 };
+                }}
               >
                 <div className="w-12 h-12 bg-white/20 rounded-full border border-white/40 shadow-xl" style={{ transform: `translate(${joystickRef.current.x * 32}px, ${joystickRef.current.y * 32}px)` }} />
               </div>
 
               {/* Right Action Buttons */}
-              <div className="flex space-x-4">
+              <div className="flex space-x-4 pointer-events-auto">
                 <ActionButton icon={<Shield />} label="BLOCK" onDown={() => setAction('block')} onUp={() => setAction('idle')} />
                 <ActionButton icon={<Swords />} label="ATTACK" onDown={() => setAction('attack')} onUp={() => setAction('idle')} color="bg-cyan-500" />
               </div>

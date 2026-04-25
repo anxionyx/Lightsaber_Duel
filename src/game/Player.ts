@@ -50,4 +50,9 @@ export class Player {
   public move(dir: THREE.Vector3, delta: number) {
     this.group.position.addScaledVector(dir, this.moveSpeed * delta);
   }
+
+  public face(target: THREE.Vector3) {
+    const lookTarget = new THREE.Vector3(target.x, this.group.position.y, target.z);
+    this.group.lookAt(lookTarget);
+  }
 }
