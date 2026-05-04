@@ -44,14 +44,21 @@ export default function App() {
       setLoading(true);
       setProgress(20);
       isGameOverRef.current = false;
+      setPeerId('');
       setGameState({ playerHP: 100, enemyHP: 100, isGameOver: false });
 
       // Small delay to ensure DOM is ready and show progress
       await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Safety check: if mode changed while waiting, abort
+      if (mode === 'menu') return;
+
       setProgress(50);
 
       try {
-        const engine = new GameEngine(containerRef.current!, (delta) => {
+        if (!containerRef.current) throw new Error("Container not found");
+
+        const engine = new GameEngine(containerRef.current, (delta) => {
           if (isGameOverRef.current) return;
           updateGame(delta);
         });
@@ -99,6 +106,7 @@ export default function App() {
         setTimeout(() => setLoading(false), 200);
       } catch (err) {
         console.error("Failed to init game:", err);
+        setLoading(false);
         setMode('menu');
       }
     };
@@ -107,9 +115,12 @@ export default function App() {
 
     return () => {
       if (engineRef.current) engineRef.current.destroy();
+      if (multiRef.current) multiRef.current.destroy();
       engineRef.current = null;
       multiRef.current = null;
       aiRef.current = null;
+      playerRef.current = null;
+      enemyRef.current = null;
     };
   }, [mode]);
 

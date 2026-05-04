@@ -42,4 +42,11 @@ export class MultiplayerManager {
   }
 
   public getPeerId() { return this.myId; }
+
+  public destroy() {
+    if (this.connection) {
+      this.connection.close();
+    }
+    this.peer.destroy();
+  }
 }
