@@ -1,0 +1,41 @@
+name: Manual Release and Artifact
+
+on:
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install and Build
+        run: |
+          npm install
+          npm run build
+
+      - name: Zip build files
+        run: zip -r build-assets.zip dist/ # Change 'dist/' to your build folder name (e.g., 'build/')
+
+      - name: Upload Action Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-build
+          path: build-assets.zip
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: release-${{ github.run_number }}
+          name: Release ${{ github.run_number }}
+          generate_release_notes: true
+          files: build-assets.zip
