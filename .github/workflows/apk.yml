@@ -1,0 +1,85 @@
+name: Compile Zip to APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release Tag to pull Zip from (e.g., v1.0.1)'
+        required: true
+        type: string
+
+jobs:
+  compile-apk:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17' # Required version for standard Android SDK build tools
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Download Latest Zip from Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Uses the GitHub CLI to automatically download the .zip file from your specified release tag
+          gh release download ${{ inputs.release_tag }} --pattern "*.zip" --dir ./downloaded-zip
+
+      - name: Unzip Build Artifact
+        run: |
+          mkdir -p dist
+          unzip ./downloaded-zip/*.zip -d dist/
+          
+      - name: Install Mobile Build Dependencies
+        run: |
+          npm ci
+          # Installs native mobile bridging CLI tools if not pinned in package.json
+          npm install @capacitor/cli @capacitor/android @cordova-res/core
+
+      - name: Configure App Icon
+        run: |
+          if [ -f "icon.png" ]; then
+            echo "Icon found! Generating Android adaptive icons..."
+            # Automatically resizes and populates your root icon.png into all required Android mipmap sizes
+            npx cordova-res android --icon-source icon.png --skip-splash
+          else
+            echo "WARNING: icon.png not found in repository root. Falling back to default icon."
+          fi
+
+      - name: Sync Web Assets & Inject Version
+        run: |
+          # Strips the 'v' out of the tag (e.g., 'v1.0.5' -> '1.0.5') to match Android version requirements
+          VERSION_NUM=$(echo "${{ inputs.release_tag }}" | sed 's/v//g')
+          
+          # Initialize Android project files and force match the release version profile
+          npx cap add android || true
+          npx cap sync android
+          
+          # Updates the Android build file version mappings dynamically
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VERSION_NUM\"/g" android/app/build.gradle
+
+      - name: Build Android APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug # Compiles a standard test/debug APK file
+
+      - name: Upload Generated APK to Workflow Run
+        uses: actions/upload-artifact@v4
+        with:
+          name: Lightsaber_Duel-${{ inputs.release_tag }}.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
