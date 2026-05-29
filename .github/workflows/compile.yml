@@ -13,27 +13,28 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: [actions/checkout@v4](https://github.com)
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: [actions/setup-node@v4](https://github.com)
+        uses: actions/setup-node@v4
         with:
-          node-version: '24' # Specify your required Node version
+          node-version: '24' 
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci # 'npm ci' is faster and more reliable for CI environments
+        run: npm ci
 
       - name: Build project
         run: npm run build
 
       - name: Zip build output
-        # Replace 'dist' with your actual build output directory (e.g., 'build' or 'out')
+        # Ensure 'dist' matches your actual build folder (e.g., 'dist', 'build', or 'out')
         run: zip -r Lightsaber_Duel-v1.zip dist
 
       - name: Create GitHub Release
-        uses: [softprops/action-gh-release@v2](https://github.com/softprops/action-gh-release)
+        uses: softprops/action-gh-release@v2
         with:
           files: Lightsaber_Duel-v1.zip
+          tag_name: v1.0.${{ github.run_number }} # Automatically creates a unique version tag
           generate_release_notes: true
-        
+
