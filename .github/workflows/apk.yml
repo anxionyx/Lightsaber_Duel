@@ -47,7 +47,7 @@ jobs:
         run: |
           npm ci
           # Installs native mobile bridging CLI tools if not pinned in package.json
-          npm install @capacitor/cli @capacitor/android @cordova-res/core
+          npm install @capacitor/cli @capacitor/android cordova-res
 
       - name: Configure App Icon
         run: |
