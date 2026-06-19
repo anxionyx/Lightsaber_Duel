@@ -1,8 +1,9 @@
 {
-  "name": "react-example",
+  "name": "lightsaber-duel",
+  "version": "2.0.0",
   "private": true,
-  "version": "0.0.0",
   "type": "module",
+  "description": "Ultimate 3D Lightsaber Combat Game",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
