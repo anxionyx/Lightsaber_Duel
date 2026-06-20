@@ -34,5 +34,10 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
+  },
+  "allowScripts": {
+    "protobufjs@7.5.5": true,
+    "esbuild@0.27.7": true,
+    "esbuild@0.25.12": true
   }
 }
